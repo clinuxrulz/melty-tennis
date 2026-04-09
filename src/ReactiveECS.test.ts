@@ -271,6 +271,41 @@ describe("ReactiveECS", () => {
       expect(entity.hasComponent(Pos)).toBe(true);
       expect(entity.getField(Pos, "x")).toBe(1);
     });
+
+    it("maps are cleaned up when reference count hits zero", () => {
+      const Pos = ecs.register_component(["x", "y"] as const);
+      const Time = ecs.register_resource(["delta", "elapsed"] as const, {
+        delta: 0.016,
+        elapsed: 1.0,
+      });
+      const e = ecs.create_entity();
+      ecs.add_component(e, Pos, { x: 1, y: 2 });
+      ecs.startup();
+
+      createRoot((dispose) => {
+        // Create refs in reactive scope - maps get populated
+        const entity = reactive.entity(e);
+        entity.hasComponent(Pos);
+        entity.getField(Pos, "x");
+
+        const time = reactive.resource(Time);
+        time.delta;
+
+        // Dispose the reactive scope - ref counts go to zero
+        dispose();
+      });
+
+      // After dispose, the maps should be empty
+      createRoot(() => {
+        const entity = reactive.entity(e);
+        const time = reactive.resource(Time);
+        
+        // Accessing again should repopulate (not crash)
+        expect(entity.hasComponent(Pos)).toBe(true);
+        expect(entity.getField(Pos, "x")).toBe(1);
+        expect(time.delta).toBe(0.016);
+      });
+    });
   });
 
   describe("auto-dirty on write methods", () => {

@@ -51,12 +51,14 @@ class ReactiveRef<T> {
   #key: string;
   #refCount = 0;
   #tracked = false;
+  #onUnref: (() => void) | undefined;
 
-  constructor(triggerStore: TriggerStore, key: string, getValue: () => T, dirty: () => void) {
+  constructor(triggerStore: TriggerStore, key: string, getValue: () => T, dirty: () => void, onUnref?: () => void) {
     this.#triggerStore = triggerStore;
     this.#key = key;
     this.#getValue = getValue;
     this.#dirty = dirty;
+    this.#onUnref = onUnref;
   }
 
   get value(): T {
@@ -68,8 +70,14 @@ class ReactiveRef<T> {
         this.#tracked = true;
         onCleanup(() => {
           this.#refCount--;
+          // microtask is to avoid removing the trigger used by a single listener
           if (this.#refCount === 0) {
-            this.#tracked = false;
+            queueMicrotask(() => {
+              if (this.#refCount === 0) {
+                this.#tracked = false;
+                this.#onUnref?.();
+              }
+            });
           }
         });
       }
@@ -114,6 +122,7 @@ class ReactiveResource<F extends readonly string[]> {
         key,
         () => this.#resource[field],
         () => this.#triggerStore.dirty(key),
+        () => this.#fieldRefs.delete(field),
       );
       this.#fieldRefs.set(field, ref);
     }
@@ -165,6 +174,7 @@ class ReactiveEntity {
         key,
         () => this.#ecs.has_component(this.#id, def),
         () => this.#triggerStore.dirty(key),
+        () => this.#componentRefs.delete(key),
       );
       this.#componentRefs.set(key, ref);
     }
@@ -184,6 +194,7 @@ class ReactiveEntity {
         key,
         () => this.#ecs.get_field(this.#id, def, field),
         () => this.#triggerStore.dirty(key),
+        () => this.#fieldRefs.delete(key),
       );
       this.#fieldRefs.set(key, ref);
     }
