@@ -6,41 +6,38 @@ import type { EntityID } from "@oasys/oecs";
 import type { ComponentDef, ComponentSchema, FieldValues } from "@oasys/oecs";
 
 class TriggerStore {
-  #triggers: { [key: number]: number };
-  #setTriggers: (fn: (s: { [key: number]: number }) => { [key: number]: number }) => void;
-  #nextKey = 0;
-  #keyToId = new Map<string, number>();
+  #triggers: { [key: string]: number };
+  #setTriggers: (fn: (s: { [key: string]: number }) => { [key: string]: number }) => void;
 
   constructor() {
-    const [triggers, setTriggers] = createStore<{ [key: number]: number }>({});
+    const [triggers, setTriggers] = createStore<{ [key: string]: number }>({});
     this.#triggers = triggers;
     this.#setTriggers = setTriggers;
   }
 
   track(key: string): void {
-    const id = this.#getOrCreate(key);
-    const _ = this.#triggers[id];
+    if (!(key in this.#triggers)) {
+      this.#setTriggers((s) => {
+        s[key] = 0;
+        return s;
+      });
+    }
+    const _ = this.#triggers[key];
+  }
+
+  untrack(key: string): void {
+    this.#setTriggers((s) => {
+      delete s[key];
+      return s;
+    });
   }
 
   dirty(key: string): void {
-    const id = this.#keyToId.get(key);
-    if (id === undefined) return;
+    if (!(key in this.#triggers)) return;
     this.#setTriggers((s) => {
-      s[id] = 1 - s[id];
+      s[key] = 1 - s[key];
       return s;
     });
-  }
-
-  #getOrCreate(key: string): number {
-    let id = this.#keyToId.get(key);
-    if (id !== undefined) return id;
-    id = this.#nextKey++;
-    this.#keyToId.set(key, id);
-    this.#setTriggers((s) => {
-      s[id] = 0;
-      return s;
-    });
-    return id;
   }
 }
 
@@ -122,7 +119,10 @@ class ReactiveResource<F extends readonly string[]> {
         key,
         () => this.#resource[field],
         () => this.#triggerStore.dirty(key),
-        () => this.#fieldRefs.delete(field),
+        () => {
+          this.#triggerStore.untrack(key);
+          this.#fieldRefs.delete(field);
+        },
       );
       this.#fieldRefs.set(field, ref);
     }
@@ -174,7 +174,10 @@ class ReactiveEntity {
         key,
         () => this.#ecs.has_component(this.#id, def),
         () => this.#triggerStore.dirty(key),
-        () => this.#componentRefs.delete(key),
+        () => {
+          this.#triggerStore.untrack(key);
+          this.#componentRefs.delete(key);
+        },
       );
       this.#componentRefs.set(key, ref);
     }
@@ -194,7 +197,10 @@ class ReactiveEntity {
         key,
         () => this.#ecs.get_field(this.#id, def, field),
         () => this.#triggerStore.dirty(key),
-        () => this.#fieldRefs.delete(key),
+        () => {
+          this.#triggerStore.untrack(key);
+          this.#fieldRefs.delete(key);
+        },
       );
       this.#fieldRefs.set(key, ref);
     }
