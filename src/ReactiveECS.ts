@@ -96,6 +96,10 @@ class ReactiveResource<F extends readonly string[]> {
   }
 
   #getField(field: F[number]): number {
+    const observer = getObserver();
+    if (observer === null) {
+      return this.#resource[field];
+    }
     const key = `resource:${this.#def}:${field}`;
     let ref = this.#fieldRefs.get(field);
     if (ref === undefined) {
@@ -143,6 +147,10 @@ class ReactiveEntity {
   }
 
   hasComponent(def: ComponentDef): boolean {
+    const observer = getObserver();
+    if (observer === null) {
+      return this.#ecs.has_component(this.#id, def);
+    }
     const key = `entity:${this.#id}:has:${def}`;
     let ref = this.#componentRefs.get(key);
     if (ref === undefined) {
@@ -158,6 +166,10 @@ class ReactiveEntity {
   }
 
   getField<S extends ComponentSchema>(def: ComponentDef<S>, field: string & keyof S): number {
+    const observer = getObserver();
+    if (observer === null) {
+      return this.#ecs.get_field(this.#id, def, field);
+    }
     const key = `entity:${this.#id}:${def}:${field}`;
     let ref = this.#fieldRefs.get(key);
     if (ref === undefined) {
@@ -187,25 +199,44 @@ class ReactiveQuery<Defs extends readonly ComponentDef[]> {
   }
 
   get archetype_count(): number {
+    const observer = getObserver();
+    if (observer === null) {
+      return this.#query.archetype_count;
+    }
     const key = `query:${this.#query.archetype_count}:count`;
     this.#triggerStore.track(key);
     return this.#query.archetype_count;
   }
 
   count(): number {
+    const observer = getObserver();
+    if (observer === null) {
+      return this.#query.count();
+    }
     const key = `query:${this.#query.count()}:count`;
     this.#triggerStore.track(key);
     return this.#query.count();
   }
 
   get archetypes() {
+    const observer = getObserver();
+    if (observer === null) {
+      return this.#query.archetypes;
+    }
     const key = `query:${this.#query.archetype_count}:archetypes`;
     this.#triggerStore.track(key);
     return this.#query.archetypes;
   }
 
   *[Symbol.iterator]() {
+    const observer = getObserver();
     const archetypes = this.#query.archetypes;
+    if (observer === null) {
+      for (const arch of this.#query) {
+        yield arch;
+      }
+      return;
+    }
     const archKey = `query:${archetypes.length}:archetypes`;
     this.#triggerStore.track(archKey);
     for (const arch of this.#query) {
@@ -246,24 +277,40 @@ class ReactiveArchetype {
   }
 
   get entity_ids(): Uint32Array {
+    const observer = getObserver();
+    if (observer === null) {
+      return this.#archetype.entity_ids;
+    }
     const key = `arch:${this.#archetype.id}:entity_ids`;
     this.#triggerStore.track(key);
     return this.#archetype.entity_ids;
   }
 
   get entity_count(): number {
+    const observer = getObserver();
+    if (observer === null) {
+      return this.#archetype.entity_count;
+    }
     const key = `arch:${this.#archetype.id}:count`;
     this.#triggerStore.track(key);
     return this.#archetype.entity_count;
   }
 
   has_component(id: number): boolean {
+    const observer = getObserver();
+    if (observer === null) {
+      return this.#archetype.has_component(id);
+    }
     const key = `arch:${this.#archetype.id}:has:${id}`;
     this.#triggerStore.track(key);
     return this.#archetype.has_component(id);
   }
 
   get_column<S extends ComponentSchema, K extends string & keyof S>(def: ComponentDef<S>, field: K): any {
+    const observer = getObserver();
+    if (observer === null) {
+      return this.#archetype.get_column(def, field);
+    }
     const key = `arch:${this.#archetype.id}:col`;
     this.#triggerStore.track(key);
     return this.#archetype.get_column(def, field);
