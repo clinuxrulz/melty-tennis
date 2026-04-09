@@ -3,7 +3,7 @@ import type { ECS } from "@oasys/oecs";
 import type { Query } from "@oasys/oecs";
 import type { ResourceDef, ResourceReader } from "@oasys/oecs";
 import type { EntityID } from "@oasys/oecs";
-import type { ComponentDef, ComponentSchema } from "@oasys/oecs";
+import type { ComponentDef, ComponentSchema, FieldValues } from "@oasys/oecs";
 
 class TriggerStore {
   #triggers: { [key: number]: number };
@@ -225,6 +225,7 @@ class ReactiveQuery<Defs extends readonly ComponentDef[]> {
       return this.#query.count();
     }
     this.#triggerStore.track(`${this.#queryKey}:count`);
+    this.#triggerStore.track("world:entities");
     return this.#query.count();
   }
 
@@ -234,6 +235,7 @@ class ReactiveQuery<Defs extends readonly ComponentDef[]> {
       return this.#query.archetypes;
     }
     this.#triggerStore.track(`${this.#queryKey}:archetypes`);
+    this.#triggerStore.track("world:entities");
     return this.#query.archetypes;
   }
 
@@ -355,5 +357,48 @@ export class ReactiveECS {
 
   entity(id: EntityID): ReactiveEntity {
     return new ReactiveEntity(this.#triggers, this.#ecs, id);
+  }
+
+  create_entity(): EntityID {
+    const id = this.#ecs.create_entity();
+    this.#triggers.dirty("world:entities");
+    return id;
+  }
+
+  destroy_entity_deferred(id: EntityID): void {
+    this.#ecs.destroy_entity_deferred(id);
+    this.#triggers.dirty("world:entities");
+  }
+
+  add_component(entity_id: EntityID, def: ComponentDef<Record<string, never>>): this;
+  add_component<S extends ComponentSchema>(entity_id: EntityID, def: ComponentDef<S>, values: FieldValues<S>): this;
+  add_component(entity_id: EntityID, def: ComponentDef, values?: Record<string, number>): this {
+    const key = `entity:${entity_id}:has:${def}`;
+    this.#ecs.add_component(entity_id, def, values as any);
+    this.#triggers.dirty(key);
+    this.#triggers.dirty("world:entities");
+    return this;
+  }
+
+  remove_component(entity_id: EntityID, def: ComponentDef): this {
+    const key = `entity:${entity_id}:has:${def}`;
+    this.#ecs.remove_component(entity_id, def);
+    this.#triggers.dirty(key);
+    this.#triggers.dirty("world:entities");
+    return this;
+  }
+
+  set_field<S extends ComponentSchema>(entity_id: EntityID, def: ComponentDef<S>, field: string & keyof S, value: number): void {
+    const key = `entity:${entity_id}:${def}:${field}`;
+    this.#ecs.set_field(entity_id, def, field, value);
+    this.#triggers.dirty(key);
+  }
+
+  set_resource<F extends readonly string[]>(def: ResourceDef<F>, values: { readonly [K in F[number]]: number }): void {
+    const reader = this.#ecs.resource(def);
+    this.#ecs.set_resource(def, values);
+    for (const field of Object.keys(reader) as F[number][]) {
+      this.#triggers.dirty(`resource:${def.toString()}:${field}`);
+    }
   }
 }
