@@ -13,6 +13,8 @@ import {
   Renderable,
   GlobalGravity,
   GameState,
+  ServingState,
+  RacketSide,
 } from "./components";
 
 const baseEcs = new ECS();
@@ -30,6 +32,8 @@ export const RegisteredGravityAffected = baseEcs.register_component(GravityAffec
 export const RegisteredRenderable = baseEcs.register_component(Renderable.def);
 export const RegisteredGlobalGravity = baseEcs.register_resource(["x", "y", "z"], GlobalGravity.schema);
 export const RegisteredGameState = baseEcs.register_resource(["servingPlayer"], GameState.schema);
+export const RegisteredServingState = baseEcs.register_component(ServingState.def);
+export const RegisteredRacketSide = baseEcs.register_component(RacketSide.def);
 
 export function World(): {
   ecs: ReactiveECS,

@@ -3,7 +3,8 @@ import { type Accessor, createSignal, createMemo, createEffect, createRoot, type
 import type { ReactiveECS } from "./ReactiveECS";
 import * as THREE from "three";
 import { Joystick } from "./Joystick";
-import { World, RegisteredDesiredMovement } from "./World";
+import { JumpButton } from "./JumpButton";
+import { World, RegisteredDesiredMovement, RegisteredInputControlled, RegisteredServingState, RegisteredRacketSide } from "./World";
 import { Player } from "./Player";
 import { Court } from "./Court";
 import { Ball } from "./Ball";
@@ -11,7 +12,8 @@ import { createRenderSystem } from "./systems/RenderSystem";
 import { createInputProcessingSystem } from "./systems/InputProcessingSystem";
 import { createPlayerMovementSystem } from "./systems/PlayerMovementSystem";
 import { createBallPhysicsSystem } from "./systems/BallPhysicsSystem";
-import { RegisteredInputControlled } from './World';
+import { createServingSystem } from "./systems/ServingSystem";
+import { createTennisRulesSystem } from "./systems/TennisRulesSystem";
 
 let [ canvasSize, setCanvasSize, ] = createSignal<THREE.Vector2>();
 
@@ -20,7 +22,7 @@ let world = World();
 
 // Now create players, court, and ball with the ReactiveECS from world
 const player1Entity = Player({
-  position: new THREE.Vector3(0.0, 0.0, 2.5),
+  position: new THREE.Vector3(0.0, 0.0, -2.5),
   velocity: new THREE.Vector3(0.0, 0.0, 0.0),
   playerType: "Melty",
   facingForward: true,
@@ -28,34 +30,39 @@ const player1Entity = Player({
 });
 world.ecs.add_component(player1Entity, RegisteredInputControlled, {});
 world.ecs.add_component(player1Entity, RegisteredDesiredMovement, { x: 0, z: 0 });
+world.ecs.add_component(player1Entity, RegisteredRacketSide, { side: 1 });
 
 const player2Entity = Player({
-  position: new THREE.Vector3(0.0, 0.0, -2.5),
+  position: new THREE.Vector3(0.0, 0.0, 2.5),
   velocity: new THREE.Vector3(0.0, 0.0, 0.0),
   playerType: "Cubey",
   facingForward: false,
   reactiveEcs: world.ecs,
 });
 world.ecs.add_component(player2Entity, RegisteredDesiredMovement, { x: 0, z: 0 });
+world.ecs.add_component(player2Entity, RegisteredRacketSide, { side: -1 });
 
 const courtEntity = Court({
-  width: 4.0,
-  length: 6.0,
-  netHeight: 0.5,
+  width: 10.97,
+  length: 23.77,
+  netHeight: 0.914,
   reactiveEcs: world.ecs,
 });
 
 const ballEntity = Ball({
-  position: createMemo(() => new THREE.Vector3(0.0, 1.0, 1.0)),
+  position: createMemo(() => new THREE.Vector3(0.0, 0.1, 2.5)),
   size: createMemo(() => 0.1),
   boundary: createMemo(() =>
     new THREE.Box3(
-      new THREE.Vector3(-2.0, 0.0, -3.0),
-      new THREE.Vector3(2.0, 2.5, 3.0),
+      new THREE.Vector3(-5.5, 0.0, -12.0),
+      new THREE.Vector3(5.5, 5.0, 12.0),
     ),
   ),
   reactiveEcs: world.ecs,
 });
+
+const servingEntity = world.ecs.create_entity();
+world.ecs.add_component(servingEntity, RegisteredServingState, { phase: 0, serverPlayer: 1, throwTime: 0.0 });
 
 let [ upDown, setUpDown, ] = createSignal(false);
 let [ downDown, setDownDown, ] = createSignal(false);
@@ -78,20 +85,36 @@ function App() {
     knobSize: () => 70,
   });
 
+  let jumpButtonSize = 80;
+  let jumpButton = JumpButton({
+    position: createMemo(() =>
+      new THREE.Vector2(
+        (canvasSize()?.x ?? 0) - 50 - jumpButtonSize,
+        (canvasSize()?.y ?? 0) - 50 - jumpButtonSize,
+      )
+    ),
+    size: () => jumpButtonSize,
+  });
+
   // Function to create and manage all systems
   const createGameSystems = (ecs: ReactiveECS, scene: THREE.Scene) => {
     const input = createInputProcessingSystem(ecs, upDown, downDown, leftDown, rightDown, joystick.value);
-    const player = createPlayerMovementSystem(ecs, jumpDown);
+    const jumpDownBoth = () => jumpDown() || jumpButton.pressed();
+    const player = createPlayerMovementSystem(ecs, jumpDownBoth);
     const ball = createBallPhysicsSystem(ecs);
     const render = createRenderSystem(ecs, scene);
+    const serving = createServingSystem(ecs, jumpDownBoth);
+    const tennisRules = createTennisRulesSystem(ecs);
 
-    const disposers = [input.dispose, player.dispose, ball.dispose];
+    const disposers = [input.dispose, player.dispose, ball.dispose, serving.dispose, tennisRules.dispose];
 
     return {
       update: (dt: number) => {
         input.update();
         player.update(dt);
         ball.update(dt);
+        serving.update(dt);
+        tennisRules.update(dt);
       },
       dispose: () => {
         disposers.forEach(d => d());
@@ -127,9 +150,9 @@ function App() {
     resizeObserver.observe(canvas);
     // TODO resizeOberver cleanup
 
-    const camera = new THREE.PerspectiveCamera( 50, width / height, 0.01, 10 );
-    camera.position.set(0,2,6);
-    camera.lookAt(new THREE.Vector3());
+    const camera = new THREE.PerspectiveCamera( 50, width / height, 0.01, 100 );
+    camera.position.set(0, 15, 16);
+    camera.lookAt(0, 0, -2);
 
     const scene = new THREE.Scene();
 
@@ -175,6 +198,7 @@ function App() {
       }}
     />
     <joystick.UI/>
+    <jumpButton.UI/>
   </>);
 }
 

@@ -13,7 +13,7 @@ export function Ball(params: {
   const ecs = params.reactiveEcs;
   
   const initialPos = params.position();
-  const initialVel = new THREE.Vector3(2.0, 1.5, 2.0); // Initial velocity from original Ball.ts
+  const initialVel = new THREE.Vector3(0.0, 0.0, 0.0);
   const entityId = ecs.create_entity();
   
   ecs.add_component(entityId, RegisteredPosition, { x: initialPos.x, y: initialPos.y, z: initialPos.z });

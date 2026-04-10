@@ -77,6 +77,24 @@ export const GameState = {
     name: "GameState"
 };
 
+export const ServingState = {
+    def: { phase: "u8", serverPlayer: "u8", throwTime: "f64" } as const,
+    schema: { phase: 0, serverPlayer: 0, throwTime: 0.0 },
+    name: "ServingState"
+};
+
+export const RacketSide = {
+    def: { side: "i8" } as const,
+    schema: { side: 1 },
+    name: "RacketSide"
+};
+
+export const BallBounceEvent = {
+    def: { z: "f64", y: "f64" } as const,
+    schema: { z: 0.0, y: 0.0 },
+    name: "BallBounceEvent"
+};
+
 export type ComponentTypes = {
     Position: typeof Position,
     Velocity: typeof Velocity,
@@ -88,6 +106,7 @@ export type ComponentTypes = {
     Boundary: typeof Boundary,
     GravityAffected: typeof GravityAffected,
     Renderable: typeof Renderable,
+    ServingState: typeof ServingState,
 };
 
 export type ResourceTypes = {

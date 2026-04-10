@@ -8,6 +8,8 @@ import {
   RegisteredPlayerConfig,
   RegisteredCourtDimensions,
   RegisteredGlobalGravity,
+  RegisteredServingState,
+  RegisteredRacketSide,
 } from "../World";
 
 export function createPlayerMovementSystem(
@@ -25,6 +27,18 @@ export function createPlayerMovementSystem(
           netHeight: courtArch.get_column(RegisteredCourtDimensions, "netHeight")[0],
       } : undefined;
       
+      let inServingPhase = false;
+      let serverCantMove = false;
+      const SERVE_PHASE_BALL_THROWN = 1;
+      const servingQuery = ecs.query(RegisteredServingState);
+      if (servingQuery.archetypes.length > 0) {
+        const servingArch = servingQuery.archetypes[0];
+        const phases = servingArch.get_column(RegisteredServingState, "phase");
+        const serverPlayers = servingArch.get_column(RegisteredServingState, "serverPlayer");
+        inServingPhase = phases[0] !== 2;
+        serverCantMove = phases[0] === SERVE_PHASE_BALL_THROWN;
+      }
+      
       const playerUpdates: {
         entityId: number;
         newPosX: number;
@@ -33,9 +47,10 @@ export function createPlayerMovementSystem(
         newVelX: number;
         newVelY: number;
         newVelZ: number;
+        racketSide: number;
       }[] = [];
 
-      const playerQuery = ecs.query(RegisteredPosition, RegisteredVelocity, RegisteredDesiredMovement, RegisteredPlayerConfig);
+      const playerQuery = ecs.query(RegisteredPosition, RegisteredVelocity, RegisteredDesiredMovement, RegisteredPlayerConfig, RegisteredRacketSide);
 
       for (const arch of playerQuery) {
         const positionsX = arch.get_column(RegisteredPosition, "x");
@@ -49,6 +64,7 @@ export function createPlayerMovementSystem(
         const playerConfigTypes = arch.get_column(RegisteredPlayerConfig, "playerType");
         const playerConfigFacings = arch.get_column(RegisteredPlayerConfig, "facingForward");
         const entityIds = arch.entity_ids;
+        const racketSides = arch.get_column(RegisteredRacketSide, "side");
 
         for (let i = 0; i < arch.entity_count; i++) {
           const entityId = entityIds[i];
@@ -64,10 +80,21 @@ export function createPlayerMovementSystem(
           let newVelY = velocity.y;
           let newVelZ = velocity.z;
 
-          newPosX += desiredMovement.x * 0.05;
-          newPosZ += desiredMovement.z * 0.05;
+          const isServer = playerConfig.playerType === 0 ? false : (playerConfig.playerType === 1 ? true : false);
+          let currentRacketSide = racketSides[i];
+          
+          if (!(serverCantMove && isServer)) {
+            newPosX += desiredMovement.x * 0.1;
+            newPosZ += desiredMovement.z * 0.1;
+            
+            if (desiredMovement.x > 0.1) {
+              currentRacketSide = -1;
+            } else if (desiredMovement.x < -0.1) {
+              currentRacketSide = 1;
+            }
+          }
 
-          if (newPosY <= 0.0) {
+          if (!inServingPhase && newPosY <= 0.0) {
             if (jumpDown()) {
               newVelY = 5.0;
             }
@@ -112,10 +139,10 @@ export function createPlayerMovementSystem(
               }
             }
           }
-          playerUpdates.push({ entityId, newPosX, newPosY, newPosZ, newVelX, newVelY, newVelZ });
+          playerUpdates.push({ entityId, newPosX, newPosY, newPosZ, newVelX, newVelY, newVelZ, racketSide: currentRacketSide });
         }
       }
-      for (const { entityId, newPosX, newPosY, newPosZ, newVelX, newVelY, newVelZ } of playerUpdates) {
+      for (const { entityId, newPosX, newPosY, newPosZ, newVelX, newVelY, newVelZ, racketSide } of playerUpdates) {
         const id = entityId as EntityID;
         ecs.set_field(id, RegisteredPosition, "x", newPosX);
         ecs.set_field(id, RegisteredPosition, "y", newPosY);
@@ -123,6 +150,7 @@ export function createPlayerMovementSystem(
         ecs.set_field(id, RegisteredVelocity, "x", newVelX);
         ecs.set_field(id, RegisteredVelocity, "y", newVelY);
         ecs.set_field(id, RegisteredVelocity, "z", newVelZ);
+        ecs.set_field(id, RegisteredRacketSide, "side", racketSide);
       }
     };
 

@@ -7,6 +7,7 @@ import {
   RegisteredPlayerConfig,
   RegisteredCourtDimensions,
   RegisteredBallConfig,
+  RegisteredRacketSide,
 } from "../World";
 
 export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { update: () => void; dispose: () => void } {
@@ -70,6 +71,24 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
         group.add(middleToothMesh);
         eyesMesh.forEach((m) => group.add(m));
 
+        const racketGroup = new THREE.Group();
+        const racketMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+        
+        const handleGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.3, 8);
+        const handleMesh = new THREE.Mesh(handleGeometry, racketMaterial);
+        handleMesh.position.set(0, 0, 0);
+        handleMesh.rotation.x = Math.PI / 2;
+        racketGroup.add(handleMesh);
+        
+        const racketFaceGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.02, 16);
+        const racketFaceMesh = new THREE.Mesh(racketFaceGeometry, racketMaterial);
+        racketFaceMesh.position.set(0, 0, 0.15);
+        racketFaceMesh.rotation.x = Math.PI / 2;
+        racketGroup.add(racketFaceMesh);
+        
+        racketGroup.position.set(0.4, 0.5, 0.3);
+        group.add(racketGroup);
+
         scene.add(group);
         onCleanup(() => {
           scene.remove(group);
@@ -78,8 +97,11 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
           toothGeometry.dispose();
           middleToothGeometry.dispose();
           eyeGeometry.dispose();
+          handleGeometry.dispose();
+          racketFaceGeometry.dispose();
           normalMaterial.dispose();
           standardMaterial.dispose();
+          racketMaterial.dispose();
         });
 
         createMemo(() => {
@@ -87,12 +109,17 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
           let positionY = playerEntity.getField(RegisteredPosition, "y");
           let positionZ = playerEntity.getField(RegisteredPosition, "z");
           let facingForward = playerEntity.getField(RegisteredPlayerConfig, "facingForward");
+          let racketSide = playerEntity.getField(RegisteredRacketSide, "side");
+          
           group.position.set(positionX, positionY, positionZ);
           if (facingForward === 1) { 
             group.quaternion.set(0.0, 1.0, 0.0, 0.0);
           } else {
             group.quaternion.set(0.0, 0.0, 0.0, 1.0);
           }
+          
+          const racketOffset = racketSide * 0.4;
+          racketGroup.position.set(racketOffset, 0.5, 0.3);
         });
       },
     ));
@@ -125,6 +152,49 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
         floorMesh.position.y -= 0.05;
         courtGroup.add(floorMesh);
 
+        const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const lineThickness = 0.05;
+        const lineHeight = 0.01;
+
+        const baselineGeometry = new THREE.BoxGeometry(dimensions.width, lineHeight, lineThickness);
+        const baselineFront = new THREE.Mesh(baselineGeometry, whiteMaterial);
+        baselineFront.position.set(0, 0.01, -dimensions.length / 2);
+        courtGroup.add(baselineFront);
+        const baselineBack = new THREE.Mesh(baselineGeometry, whiteMaterial);
+        baselineBack.position.set(0, 0.01, dimensions.length / 2);
+        courtGroup.add(baselineBack);
+
+        const sidelineGeometry = new THREE.BoxGeometry(lineThickness, lineHeight, dimensions.length);
+        const sidelineLeft = new THREE.Mesh(sidelineGeometry, whiteMaterial);
+        sidelineLeft.position.set(-dimensions.width / 2, 0.01, 0);
+        courtGroup.add(sidelineLeft);
+        const sidelineRight = new THREE.Mesh(sidelineGeometry, whiteMaterial);
+        sidelineRight.position.set(dimensions.width / 2, 0.01, 0);
+        courtGroup.add(sidelineRight);
+
+        const serviceLineDistance = 6.40;
+        const serviceLineGeometry = new THREE.BoxGeometry(dimensions.width - 2 * lineThickness, lineHeight, lineThickness);
+        const serviceLineFront = new THREE.Mesh(serviceLineGeometry, whiteMaterial);
+        serviceLineFront.position.set(0, 0.01, -serviceLineDistance);
+        courtGroup.add(serviceLineFront);
+        const serviceLineBack = new THREE.Mesh(serviceLineGeometry, whiteMaterial);
+        serviceLineBack.position.set(0, 0.01, serviceLineDistance);
+        courtGroup.add(serviceLineBack);
+
+        const centerServiceLineGeometry = new THREE.BoxGeometry(lineThickness, lineHeight, serviceLineDistance * 2);
+        const centerServiceLine = new THREE.Mesh(centerServiceLineGeometry, whiteMaterial);
+        centerServiceLine.position.set(0, 0.01, 0);
+        courtGroup.add(centerServiceLine);
+
+        const singlesWidth = 8.23;
+        const singlesSidelineGeometry = new THREE.BoxGeometry(lineThickness, lineHeight, dimensions.length);
+        const singlesSidelineLeft = new THREE.Mesh(singlesSidelineGeometry, whiteMaterial);
+        singlesSidelineLeft.position.set(-singlesWidth / 2, 0.01, 0);
+        courtGroup.add(singlesSidelineLeft);
+        const singlesSidelineRight = new THREE.Mesh(singlesSidelineGeometry, whiteMaterial);
+        singlesSidelineRight.position.set(singlesWidth / 2, 0.01, 0);
+        courtGroup.add(singlesSidelineRight);
+
         const netGeometry = new THREE.BoxGeometry(dimensions.width, dimensions.netHeight, 0.1);
         const netMesh = new THREE.Mesh(netGeometry, transparentMaterial);
         netMesh.position.y = 0.5 * dimensions.netHeight;
@@ -137,6 +207,12 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
           netGeometry.dispose();
           normalMaterial.dispose();
           transparentMaterial.dispose();
+          whiteMaterial.dispose();
+          baselineGeometry.dispose();
+          sidelineGeometry.dispose();
+          serviceLineGeometry.dispose();
+          centerServiceLineGeometry.dispose();
+          singlesSidelineGeometry.dispose();
         });
       },
     ));
