@@ -12,6 +12,7 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/three": "^0.183.1",
     "babel-preset-solid": "2.0.0-beta.3",
     "typescript": "^5.7.2",
@@ -26,6 +27,8 @@
     "three": "^0.183.2"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

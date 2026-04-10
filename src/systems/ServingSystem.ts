@@ -16,6 +16,8 @@ const SERVE_PHASE_BALL_HIT = 2;
 export function createServingSystem(
   ecs: ReactiveECS,
   actionPressed: Accessor<boolean>,
+  leftRight: Accessor<number>,
+  upDown: Accessor<number>,
 ): { update: (dt: number) => void; dispose: () => void } {
   return createRoot((dispose) => {
     let lastActionPressed = false;
@@ -105,7 +107,9 @@ export function createServingSystem(
         } else if (phase === SERVE_PHASE_BALL_THROWN) {
           ecs.set_field(servingEntityId, RegisteredServingState, "phase", SERVE_PHASE_BALL_HIT);
           
-          const hitVelX = (Math.random() - 0.5) * 2;
+          const inputX = leftRight();
+          const baseVelX = 4;
+          const hitVelX = baseVelX * inputX + (Math.random() - 0.5) * 1;
           const hitVelY = 3 + Math.random() * 2;
           const hitVelZ = serverPlayer === 0 ? 8 : -8;
           

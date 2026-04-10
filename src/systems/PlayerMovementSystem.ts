@@ -10,6 +10,8 @@ import {
   RegisteredGlobalGravity,
   RegisteredServingState,
   RegisteredRacketSide,
+  RegisteredInputControlled,
+  RegisteredAI,
 } from "../World";
 
 export function createPlayerMovementSystem(
@@ -27,6 +29,7 @@ export function createPlayerMovementSystem(
           netHeight: courtArch.get_column(RegisteredCourtDimensions, "netHeight")[0],
       } : undefined;
       
+      let serverPlayer = 0;
       let inServingPhase = false;
       let serverCantMove = false;
       const SERVE_PHASE_BALL_THROWN = 1;
@@ -35,24 +38,12 @@ export function createPlayerMovementSystem(
         const servingArch = servingQuery.archetypes[0];
         const phases = servingArch.get_column(RegisteredServingState, "phase");
         const serverPlayers = servingArch.get_column(RegisteredServingState, "serverPlayer");
+        serverPlayer = serverPlayers[0];
         inServingPhase = phases[0] !== 2;
         serverCantMove = phases[0] === SERVE_PHASE_BALL_THROWN;
       }
-      
-      const playerUpdates: {
-        entityId: number;
-        newPosX: number;
-        newPosY: number;
-        newPosZ: number;
-        newVelX: number;
-        newVelY: number;
-        newVelZ: number;
-        racketSide: number;
-      }[] = [];
 
-      const playerQuery = ecs.query(RegisteredPosition, RegisteredVelocity, RegisteredDesiredMovement, RegisteredPlayerConfig, RegisteredRacketSide);
-
-      for (const arch of playerQuery) {
+      const processArchetype = (arch: any, isInputControlled: boolean) => {
         const positionsX = arch.get_column(RegisteredPosition, "x");
         const positionsY = arch.get_column(RegisteredPosition, "y");
         const positionsZ = arch.get_column(RegisteredPosition, "z");
@@ -80,7 +71,7 @@ export function createPlayerMovementSystem(
           let newVelY = velocity.y;
           let newVelZ = velocity.z;
 
-          const isServer = playerConfig.playerType === 0 ? false : (playerConfig.playerType === 1 ? true : false);
+          const isServer = playerConfig.playerType === serverPlayer;
           let currentRacketSide = racketSides[i];
           
           if (!(serverCantMove && isServer)) {
@@ -95,7 +86,7 @@ export function createPlayerMovementSystem(
           }
 
           if (!inServingPhase && newPosY <= 0.0) {
-            if (jumpDown()) {
+            if (isInputControlled && jumpDown()) {
               newVelY = 5.0;
             }
           } else if (newPosY > 0.0) {
@@ -124,33 +115,41 @@ export function createPlayerMovementSystem(
             }
 
             if (playerConfig.facingForward === 1) {
-              if (newPosZ < playerRadius) {
-                newPosZ = playerRadius;
-              }
               if (newPosZ > halfLength - playerRadius) {
                 newPosZ = halfLength - playerRadius;
               }
-            } else {
-              if (newPosZ > -playerRadius) {
-                newPosZ = -playerRadius;
+              if (newPosZ < playerRadius) {
+                newPosZ = playerRadius;
               }
+            } else {
               if (newPosZ < -halfLength + playerRadius) {
                 newPosZ = -halfLength + playerRadius;
               }
+              if (newPosZ > -playerRadius) {
+                newPosZ = -playerRadius;
+              }
             }
           }
-          playerUpdates.push({ entityId, newPosX, newPosY, newPosZ, newVelX, newVelY, newVelZ, racketSide: currentRacketSide });
+
+          const id = entityId as EntityID;
+          ecs.set_field(id, RegisteredPosition, "x", newPosX);
+          ecs.set_field(id, RegisteredPosition, "y", newPosY);
+          ecs.set_field(id, RegisteredPosition, "z", newPosZ);
+          ecs.set_field(id, RegisteredVelocity, "x", newVelX);
+          ecs.set_field(id, RegisteredVelocity, "y", newVelY);
+          ecs.set_field(id, RegisteredVelocity, "z", newVelZ);
+          ecs.set_field(id, RegisteredRacketSide, "side", currentRacketSide);
         }
+      };
+
+      const inputQuery = ecs.query(RegisteredPosition, RegisteredVelocity, RegisteredDesiredMovement, RegisteredPlayerConfig, RegisteredRacketSide, RegisteredInputControlled);
+      for (const arch of inputQuery.archetypes) {
+        processArchetype(arch, true);
       }
-      for (const { entityId, newPosX, newPosY, newPosZ, newVelX, newVelY, newVelZ, racketSide } of playerUpdates) {
-        const id = entityId as EntityID;
-        ecs.set_field(id, RegisteredPosition, "x", newPosX);
-        ecs.set_field(id, RegisteredPosition, "y", newPosY);
-        ecs.set_field(id, RegisteredPosition, "z", newPosZ);
-        ecs.set_field(id, RegisteredVelocity, "x", newVelX);
-        ecs.set_field(id, RegisteredVelocity, "y", newVelY);
-        ecs.set_field(id, RegisteredVelocity, "z", newVelZ);
-        ecs.set_field(id, RegisteredRacketSide, "side", racketSide);
+
+      const aiQuery = ecs.query(RegisteredPosition, RegisteredVelocity, RegisteredDesiredMovement, RegisteredPlayerConfig, RegisteredRacketSide, RegisteredAI);
+      for (const arch of aiQuery.archetypes) {
+        processArchetype(arch, false);
       }
     };
 

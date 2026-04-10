@@ -29,6 +29,12 @@ export const InputControlled = {
     name: "InputControlled"
 }
 
+export const AI = {
+    def: [] as const,
+    schema: {},
+    name: "AI"
+}
+
 export const DesiredMovement = {
     def: { x: "f64", z: "f64" } as const,
     schema: { x: 0.0, z: 0.0 },

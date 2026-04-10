@@ -4,7 +4,7 @@ import type { ReactiveECS } from "./ReactiveECS";
 import * as THREE from "three";
 import { Joystick } from "./Joystick";
 import { JumpButton } from "./JumpButton";
-import { World, RegisteredDesiredMovement, RegisteredInputControlled, RegisteredServingState, RegisteredRacketSide } from "./World";
+import { World, RegisteredDesiredMovement, RegisteredInputControlled, RegisteredAI, RegisteredServingState, RegisteredRacketSide } from "./World";
 import { Player } from "./Player";
 import { Court } from "./Court";
 import { Ball } from "./Ball";
@@ -14,6 +14,7 @@ import { createPlayerMovementSystem } from "./systems/PlayerMovementSystem";
 import { createBallPhysicsSystem } from "./systems/BallPhysicsSystem";
 import { createServingSystem } from "./systems/ServingSystem";
 import { createTennisRulesSystem } from "./systems/TennisRulesSystem";
+import { createAISystem } from "./systems/AISystem";
 
 let [ canvasSize, setCanvasSize, ] = createSignal<THREE.Vector2>();
 
@@ -22,7 +23,7 @@ let world = World();
 
 // Now create players, court, and ball with the ReactiveECS from world
 const player1Entity = Player({
-  position: new THREE.Vector3(0.0, 0.0, -2.5),
+  position: new THREE.Vector3(0.0, 0.0, 2.5),
   velocity: new THREE.Vector3(0.0, 0.0, 0.0),
   playerType: "Melty",
   facingForward: true,
@@ -33,12 +34,13 @@ world.ecs.add_component(player1Entity, RegisteredDesiredMovement, { x: 0, z: 0 }
 world.ecs.add_component(player1Entity, RegisteredRacketSide, { side: 1 });
 
 const player2Entity = Player({
-  position: new THREE.Vector3(0.0, 0.0, 2.5),
+  position: new THREE.Vector3(0.0, 0.0, -2.5),
   velocity: new THREE.Vector3(0.0, 0.0, 0.0),
   playerType: "Cubey",
   facingForward: false,
   reactiveEcs: world.ecs,
 });
+world.ecs.add_component(player2Entity, RegisteredAI, {});
 world.ecs.add_component(player2Entity, RegisteredDesiredMovement, { x: 0, z: 0 });
 world.ecs.add_component(player2Entity, RegisteredRacketSide, { side: -1 });
 
@@ -62,7 +64,7 @@ const ballEntity = Ball({
 });
 
 const servingEntity = world.ecs.create_entity();
-world.ecs.add_component(servingEntity, RegisteredServingState, { phase: 0, serverPlayer: 1, throwTime: 0.0 });
+world.ecs.add_component(servingEntity, RegisteredServingState, { phase: 0, serverPlayer: 0, throwTime: 0.0 });
 
 let [ upDown, setUpDown, ] = createSignal(false);
 let [ downDown, setDownDown, ] = createSignal(false);
@@ -103,14 +105,16 @@ function App() {
     const player = createPlayerMovementSystem(ecs, jumpDownBoth);
     const ball = createBallPhysicsSystem(ecs);
     const render = createRenderSystem(ecs, scene);
-    const serving = createServingSystem(ecs, jumpDownBoth);
+    const serving = createServingSystem(ecs, jumpDownBoth, () => (leftDown() ? -1 : 0) + (rightDown() ? 1 : 0) + joystick.value().x, () => (upDown() ? -1 : 0) + (downDown() ? 1 : 0));
     const tennisRules = createTennisRulesSystem(ecs);
+    const ai = createAISystem(ecs);
 
-    const disposers = [input.dispose, player.dispose, ball.dispose, serving.dispose, tennisRules.dispose];
+    const disposers = [input.dispose, player.dispose, ball.dispose, serving.dispose, tennisRules.dispose, ai.dispose];
 
     return {
       update: (dt: number) => {
         input.update();
+        ai.update(dt);
         player.update(dt);
         ball.update(dt);
         serving.update(dt);

@@ -5,6 +5,7 @@ import {
   Velocity,
   PlayerConfig,
   InputControlled,
+  AI,
   DesiredMovement,
   CourtDimensions,
   BallConfig,
@@ -24,6 +25,7 @@ export const RegisteredPosition = baseEcs.register_component(Position.def);
 export const RegisteredVelocity = baseEcs.register_component(Velocity.def);
 export const RegisteredPlayerConfig = baseEcs.register_component(PlayerConfig.def);
 export const RegisteredInputControlled = baseEcs.register_component(InputControlled.def);
+export const RegisteredAI = baseEcs.register_component(AI.def);
 export const RegisteredDesiredMovement = baseEcs.register_component(DesiredMovement.def);
 export const RegisteredCourtDimensions = baseEcs.register_component(CourtDimensions.def);
 export const RegisteredBallConfig = baseEcs.register_component(BallConfig.def);

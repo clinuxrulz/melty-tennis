@@ -114,7 +114,7 @@ export function createBallPhysicsSystem(
               
               if (dist < racketRadius + ballRadius) {
                 console.log(`HIT Player ${playerType}!`);
-                const direction = playerType === 0 ? -1 : 1;
+                const direction = playerType === 0 ? 1 : -1;
                 newVelX = dx * 2;
                 newVelY = 4;
                 newVelZ = direction * 10;
@@ -147,7 +147,7 @@ export function createBallPhysicsSystem(
                 
                 if (closestDist < racketRadius + ballRadius) {
                   console.log(`RAY HIT Player ${playerType}!`);
-                  const direction = playerType === 0 ? -1 : 1;
+                  const direction = playerType === 0 ? 1 : -1;
                   const hitStrength = 1.0 - (closestDist / (racketRadius + ballRadius));
                   newVelX = (closestDx / closestDist) * 5 * hitStrength;
                   newVelY = 4;
