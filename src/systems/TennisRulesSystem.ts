@@ -1,4 +1,4 @@
-import { createRoot } from "solid-js";
+import { createRoot, createSignal } from "solid-js";
 import type { ReactiveECS } from "../ReactiveECS";
 import type { EntityID } from "@oasys/oecs";
 import {
@@ -19,15 +19,54 @@ const COURT_LENGTH = 23.77;
 const COURT_WIDTH = 10.97;
 const NET_HEIGHT = 0.914;
 
+const TENNIS_POINTS = ["0", "15", "30", "40", "ADV"];
+
 export function createTennisRulesSystem(
   ecs: ReactiveECS,
-): { update: (dt: number) => void; dispose: () => void } {
+  onScoreChange?: (p0: number, p1: number, server: number) => void,
+): { update: (dt: number) => void; dispose: () => void; getScore: () => { p0: string; p1: string; server: number } } {
   return createRoot((dispose) => {
     let bounceCountP0 = 0;
     let bounceCountP1 = 0;
     let lastBounceSide: "p0" | "p1" | null = null;
-    let scoreP0 = 0;
-    let scoreP1 = 0;
+    let gamePointsP0 = 0;
+    let gamePointsP1 = 0;
+
+    const [scoreP0, setScoreP0] = createSignal(0);
+    const [scoreP1, setScoreP1] = createSignal(0);
+    const [currentServer, setCurrentServer] = createSignal(0);
+
+    const notifyScoreChange = () => {
+      if (onScoreChange) {
+        onScoreChange(scoreP0(), scoreP1(), currentServer());
+      }
+    };
+
+    const getScore = () => {
+      const p0Points = scoreP0();
+      const p1Points = scoreP1();
+      
+      let p0Display: string;
+      let p1Display: string;
+      
+      if (p0Points >= 4 && p1Points >= 4) {
+        if (p0Points === p1Points) {
+          p0Display = "40";
+          p1Display = "40";
+        } else if (p0Points > p1Points) {
+          p0Display = "ADV";
+          p1Display = "40";
+        } else {
+          p0Display = "40";
+          p1Display = "ADV";
+        }
+      } else {
+        p0Display = TENNIS_POINTS[Math.min(p0Points, 4)];
+        p1Display = TENNIS_POINTS[Math.min(p1Points, 4)];
+      }
+      
+      return { p0: p0Display, p1: p1Display, server: currentServer() };
+    };
 
     const handleBallBounce = (data: { z: number, y: number }) => {
       const servingQuery = ecs.query(RegisteredServingState);
@@ -54,11 +93,13 @@ export function createTennisRulesSystem(
         
         if (bounceCountP0 >= 2) {
           console.log("P0 double bounce! Point to P1");
-          scoreP1++;
-          const nextServer = 1 - serverPlayer;
+          setScoreP1(scoreP1() + 1);
+          setCurrentServer(1 - serverPlayer);
+          notifyScoreChange();
+          const nextServer = currentServer();
           ecs.set_field(servingEntityId, RegisteredServingState, "phase", SERVE_PHASE_WAITING);
           ecs.set_field(servingEntityId, RegisteredServingState, "serverPlayer", nextServer);
-          resetBall(ecs, serverPlayer, nextServer, scoreP0, scoreP1);
+          resetBall(ecs, serverPlayer, nextServer, scoreP0(), scoreP1());
           return;
         }
       }
@@ -70,11 +111,13 @@ export function createTennisRulesSystem(
         
         if (bounceCountP1 >= 2) {
           console.log("P1 double bounce! Point to P0");
-          scoreP0++;
-          const nextServer = 1 - serverPlayer;
+          setScoreP0(scoreP0() + 1);
+          setCurrentServer(1 - serverPlayer);
+          notifyScoreChange();
+          const nextServer = currentServer();
           ecs.set_field(servingEntityId, RegisteredServingState, "phase", SERVE_PHASE_WAITING);
           ecs.set_field(servingEntityId, RegisteredServingState, "serverPlayer", nextServer);
-          resetBall(ecs, serverPlayer, nextServer, scoreP0, scoreP1);
+          resetBall(ecs, serverPlayer, nextServer, scoreP0(), scoreP1());
           return;
         }
       }
@@ -154,17 +197,21 @@ export function createTennisRulesSystem(
           ballPos.x < -COURT_WIDTH / 2 - 0.5 || ballPos.x > COURT_WIDTH / 2 + 0.5) {
         console.log("Ball out of bounds");
         if (ballPos.z < 0) {
-          scoreP1++;
-          const nextServer = 1 - serverPlayer;
+          setScoreP1(scoreP1() + 1);
+          setCurrentServer(1 - serverPlayer);
+          notifyScoreChange();
+          const nextServer = currentServer();
           ecs.set_field(servingEntityId, RegisteredServingState, "phase", SERVE_PHASE_WAITING);
           ecs.set_field(servingEntityId, RegisteredServingState, "serverPlayer", nextServer);
-          resetBall(ecs, serverPlayer, nextServer, scoreP0, scoreP1);
+          resetBall(ecs, serverPlayer, nextServer, scoreP0(), scoreP1());
         } else {
-          scoreP0++;
-          const nextServer = 1 - serverPlayer;
+          setScoreP0(scoreP0() + 1);
+          setCurrentServer(1 - serverPlayer);
+          notifyScoreChange();
+          const nextServer = currentServer();
           ecs.set_field(servingEntityId, RegisteredServingState, "phase", SERVE_PHASE_WAITING);
           ecs.set_field(servingEntityId, RegisteredServingState, "serverPlayer", nextServer);
-          resetBall(ecs, serverPlayer, nextServer, scoreP0, scoreP1);
+          resetBall(ecs, serverPlayer, nextServer, scoreP0(), scoreP1());
         }
       }
     };
@@ -174,7 +221,8 @@ export function createTennisRulesSystem(
       dispose: () => {
         gameEvents.off("ballBounce", handleBallBounce);
         dispose();
-      }
+      },
+      getScore,
     };
   });
 }

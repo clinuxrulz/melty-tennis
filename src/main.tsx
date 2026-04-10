@@ -16,6 +16,57 @@ import { createServingSystem } from "./systems/ServingSystem";
 import { createTennisRulesSystem } from "./systems/TennisRulesSystem";
 import { createAISystem } from "./systems/AISystem";
 
+const [scoreP0, setScoreP0] = createSignal(0);
+const [scoreP1, setScoreP1] = createSignal(0);
+const [currentServer, setCurrentServer] = createSignal(0);
+
+const TENNIS_POINTS = ["0", "15", "30", "40", "ADV"];
+
+function formatScore(points: number, opponentPoints: number): string {
+  if (points >= 4 && opponentPoints >= 4) {
+    if (points === opponentPoints) return "40";
+    return points > opponentPoints ? "ADV" : "40";
+  }
+  return TENNIS_POINTS[Math.min(points, 4)];
+}
+
+function ScoreBoard() {
+  return (
+    <div style={{
+      position: "absolute",
+      top: "20px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      "background-color": "rgba(0, 0, 0, 0.7)",
+      color: "white",
+      padding: "15px 30px",
+      "border-radius": "10px",
+      "font-family": "Arial, sans-serif",
+      "font-size": "24px",
+      "font-weight": "bold",
+      "text-align": "center",
+      display: "flex",
+      "flex-direction": "column",
+      gap: "10px",
+    }}>
+      <div style={{ display: "flex", gap: "40px" }}>
+        <div>
+          <div style={{ "font-size": "14px", color: "#aaa" }}>P0</div>
+          <div>{formatScore(scoreP0(), scoreP1())}</div>
+        </div>
+        <div style={{ "font-size": "20px", color: "#888" }}>:</div>
+        <div>
+          <div style={{ "font-size": "14px", color: "#aaa" }}>P1</div>
+          <div>{formatScore(scoreP1(), scoreP0())}</div>
+        </div>
+      </div>
+      <div style={{ "font-size": "12px", color: "#ffd700" }}>
+        Serving: P{currentServer()}
+      </div>
+    </div>
+  );
+}
+
 let [ canvasSize, setCanvasSize, ] = createSignal<THREE.Vector2>();
 
 // Create world first to get access to ReactiveECS instance
@@ -106,7 +157,11 @@ function App() {
     const ball = createBallPhysicsSystem(ecs);
     const render = createRenderSystem(ecs, scene);
     const serving = createServingSystem(ecs, jumpDownBoth, () => (leftDown() ? -1 : 0) + (rightDown() ? 1 : 0) + joystick.value().x, () => (upDown() ? -1 : 0) + (downDown() ? 1 : 0));
-    const tennisRules = createTennisRulesSystem(ecs);
+    const tennisRules = createTennisRulesSystem(ecs, (p0, p1, server) => {
+      setScoreP0(p0);
+      setScoreP1(p1);
+      setCurrentServer(server);
+    });
     const ai = createAISystem(ecs);
 
     const disposers = [input.dispose, player.dispose, ball.dispose, serving.dispose, tennisRules.dispose, ai.dispose];
@@ -123,6 +178,7 @@ function App() {
       dispose: () => {
         disposers.forEach(d => d());
       },
+      tennisRules,
     };
   };
 
@@ -199,8 +255,13 @@ function App() {
       style={{
         "width": "100%",
         "height": "100%",
+        position: "absolute",
+        top: 0,
+        left: 0,
+        "z-index": 0,
       }}
     />
+    <ScoreBoard />
     <joystick.UI/>
     <jumpButton.UI/>
   </>);
