@@ -36,8 +36,8 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
         let middleToothMesh: THREE.Mesh;
         let eyesMesh: THREE.Mesh[] = [];
 
-        const normalMaterial = new THREE.MeshNormalMaterial();
-        const standardMaterial = new THREE.MeshStandardMaterial();
+        const normalMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const standardMaterial = new THREE.MeshStandardMaterial({ color: 0xffff00 });
 
         const chinGeometry = new THREE.BoxGeometry(0.5, 0.2, 0.5);
         chinMesh = new THREE.Mesh(chinGeometry, normalMaterial);
@@ -141,14 +141,15 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
         let dimensions = { width: courtEntity.getField(RegisteredCourtDimensions, "width"), length: courtEntity.getField(RegisteredCourtDimensions, "length"), netHeight: courtEntity.getField(RegisteredCourtDimensions, "netHeight") };
         
         const courtGroup = new THREE.Group();
-        const normalMaterial = new THREE.MeshNormalMaterial();
-        const transparentMaterial = new THREE.MeshNormalMaterial({
+        const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x3c8f4d });
+        const transparentMaterial = new THREE.MeshStandardMaterial({
+          color: 0xcccccc,
           transparent: true,
           opacity: 0.5,
         });
 
         const floorGeometry = new THREE.BoxGeometry(dimensions.width, 0.1, dimensions.length);
-        const floorMesh = new THREE.Mesh(floorGeometry, normalMaterial);
+        const floorMesh = new THREE.Mesh(floorGeometry, floorMaterial);
         floorMesh.position.y -= 0.05;
         courtGroup.add(floorMesh);
 
@@ -205,7 +206,7 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
           scene.remove(courtGroup);
           floorGeometry.dispose();
           netGeometry.dispose();
-          normalMaterial.dispose();
+          floorMaterial.dispose();
           transparentMaterial.dispose();
           whiteMaterial.dispose();
           baselineGeometry.dispose();
