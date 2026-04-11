@@ -89,9 +89,22 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
         racketGroup.position.set(0.4, 0.5, 0.3);
         group.add(racketGroup);
 
+        const playerShadowGeometry = new THREE.CircleGeometry(0.4, 32);
+        playerShadowGeometry.scale(1, 0.5, 1);
+        const playerShadowMaterial = new THREE.MeshBasicMaterial({
+          color: 0x000000,
+          transparent: true,
+          opacity: 0.3,
+        });
+        const playerShadowMesh = new THREE.Mesh(playerShadowGeometry, playerShadowMaterial);
+        playerShadowMesh.rotation.x = -Math.PI / 2;
+        playerShadowMesh.position.y = 0.01;
+        scene.add(playerShadowMesh);
+
         scene.add(group);
         onCleanup(() => {
           scene.remove(group);
+          scene.remove(playerShadowMesh);
           chinGeometry.dispose();
           headGeometry.dispose();
           toothGeometry.dispose();
@@ -99,9 +112,11 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
           eyeGeometry.dispose();
           handleGeometry.dispose();
           racketFaceGeometry.dispose();
+          playerShadowGeometry.dispose();
           normalMaterial.dispose();
           standardMaterial.dispose();
           racketMaterial.dispose();
+          playerShadowMaterial.dispose();
         });
 
         createMemo(() => {
@@ -120,6 +135,10 @@ export function createRenderSystem(ecs: ReactiveECS, scene: THREE.Scene): { upda
           
           const racketOffset = racketSide * 0.4;
           racketGroup.position.set(racketOffset, 0.5, 0.3);
+
+          const playerShadowScale = Math.max(0.3, 1 - positionY * 0.1);
+          playerShadowMesh.scale.set(playerShadowScale, playerShadowScale, playerShadowScale);
+          playerShadowMesh.position.set(positionX, 0.01, positionZ);
         });
       },
     ));
