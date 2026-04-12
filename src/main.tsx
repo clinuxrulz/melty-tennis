@@ -1,5 +1,5 @@
 import { render } from '@solidjs/web';
-import { type Accessor, createSignal, createMemo, createEffect, createRoot, type Signal, untrack, onCleanup } from 'solid-js';
+import { type Accessor, createSignal, createMemo, createEffect, createRoot, type Signal, untrack, onCleanup, For } from 'solid-js';
 import type { ReactiveECS } from "./ReactiveECS";
 import * as THREE from "three";
 import { Joystick } from "./Joystick";
@@ -23,6 +23,8 @@ import { setUseNN as setAISystemUseNN } from "./systems/AISystem";
 const [scoreP0, setScoreP0] = createSignal(0);
 const [scoreP1, setScoreP1] = createSignal(0);
 const [currentServer, setCurrentServer] = createSignal(0);
+const [winTokensP0, setWinTokensP0] = createSignal(0);
+const [winTokensP1, setWinTokensP1] = createSignal(0);
 const [soundEnabled, setSoundEnabled] = createSignal(true);
 const [aiVsAi, setAiVsAi] = createSignal(false);
 const [useNN, setUseNN] = createSignal(false);
@@ -36,6 +38,31 @@ function formatScore(points: number, opponentPoints: number): string {
     return points > opponentPoints ? "ADV" : "40";
   }
   return TENNIS_POINTS[Math.min(points, 4)];
+}
+
+function renderWinTokens(count: number) {
+  const tokens: any[] = [];
+  if (count <= 4) {
+    for (let i = 0; i < count; i++) {
+      tokens.push(<div style={{
+        width: "16px",
+        height: "16px",
+        "border-radius": "50%",
+        background: "#ffd700",
+        border: "2px solid #b8860b",
+      }} />);
+    }
+  } else {
+    tokens.push(<span style={{ "font-size": "14px", color: "#ffd700", "font-weight": "bold" }}>{count}x</span>);
+    tokens.push(<div style={{
+      width: "16px",
+      height: "16px",
+      "border-radius": "50%",
+      background: "#ffd700",
+      border: "2px solid #b8860b",
+    }} />);
+  }
+  return tokens;
 }
 
 function ScoreBoard() {
@@ -127,11 +154,17 @@ function ScoreBoard() {
         <div>
           <div style={{ "font-size": "14px", color: "#aaa" }}>P0</div>
           <div>{formatScore(scoreP0(), scoreP1())}</div>
+          <div style={{ display: "flex", gap: "4px", "justify-content": "center", "margin-top": "4px", "flex-wrap": "wrap", "max-width": "60px" }}>
+            {renderWinTokens(winTokensP0())}
+          </div>
         </div>
         <div style={{ "font-size": "20px", color: "#888" }}>:</div>
         <div>
           <div style={{ "font-size": "14px", color: "#aaa" }}>P1</div>
           <div>{formatScore(scoreP1(), scoreP0())}</div>
+          <div style={{ display: "flex", gap: "4px", "justify-content": "center", "margin-top": "4px", "flex-wrap": "wrap", "max-width": "60px" }}>
+            {renderWinTokens(winTokensP1())}
+          </div>
         </div>
       </div>
       <div style={{ "font-size": "12px", color: "#ffd700" }}>
@@ -270,6 +303,16 @@ function App() {
       setScoreP0(p0);
       setScoreP1(p1);
       setCurrentServer(server);
+    }, (winner) => {
+      if (winner === 0) {
+        setWinTokensP0(winTokensP0() + 1);
+      } else {
+        setWinTokensP1(winTokensP1() + 1);
+      }
+    }, () => {
+      setScoreP0(0);
+      setScoreP1(0);
+      setCurrentServer(0);
     });
     const ai = createAISystem(ecs);
     const sounds = createProceduralSounds(soundEnabled);

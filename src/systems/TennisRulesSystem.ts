@@ -24,6 +24,8 @@ const TENNIS_POINTS = ["0", "15", "30", "40", "ADV"];
 export function createTennisRulesSystem(
   ecs: ReactiveECS,
   onScoreChange?: (p0: number, p1: number, server: number) => void,
+  onGameWin?: (winner: number) => void,
+  onGameReset?: () => void,
 ): { update: (dt: number) => void; dispose: () => void; getScore: () => { p0: string; p1: string; server: number } } {
   return createRoot((dispose) => {
     let bounceCountP0 = 0;
@@ -39,6 +41,32 @@ export function createTennisRulesSystem(
     const notifyScoreChange = () => {
       if (onScoreChange) {
         onScoreChange(scoreP0(), scoreP1(), currentServer());
+      }
+      checkGameWin();
+    };
+
+    const checkGameWin = () => {
+      const p0 = scoreP0();
+      const p1 = scoreP1();
+      if (p0 >= 6) {
+        notifyGameWin(0);
+        return;
+      }
+      if (p1 >= 6) {
+        notifyGameWin(1);
+        return;
+      }
+    };
+
+    const notifyGameWin = (winner: number) => {
+      console.log(`Player ${winner} wins the game!`);
+      setScoreP0(0);
+      setScoreP1(0);
+      if (onGameWin) {
+        onGameWin(winner);
+      }
+      if (onGameReset) {
+        onGameReset();
       }
     };
 
@@ -89,10 +117,8 @@ export function createTennisRulesSystem(
       if (isP0Side) {
         bounceCountP0++;
         lastBounceSide = "p0";
-        console.log(`Bounce on P0 side: ${bounceCountP0}`);
         
         if (bounceCountP0 >= 2) {
-          console.log("P0 double bounce! Point to P1");
           setScoreP1(scoreP1() + 1);
           setCurrentServer(1 - serverPlayer);
           notifyScoreChange();
@@ -107,10 +133,8 @@ export function createTennisRulesSystem(
       if (isP1Side) {
         bounceCountP1++;
         lastBounceSide = "p1";
-        console.log(`Bounce on P1 side: ${bounceCountP1}`);
         
         if (bounceCountP1 >= 2) {
-          console.log("P1 double bounce! Point to P0");
           setScoreP0(scoreP0() + 1);
           setCurrentServer(1 - serverPlayer);
           notifyScoreChange();
@@ -165,8 +189,6 @@ export function createTennisRulesSystem(
       bounceCountP0 = 0;
       bounceCountP1 = 0;
       lastBounceSide = null;
-      
-      console.log(`Reset to server ${newServer}, score: P0=${p0Score}, P1=${p1Score}`);
     };
 
     const update = (deltaTime: number) => {
@@ -199,13 +221,9 @@ export function createTennisRulesSystem(
       
       const ballPos = { x: positionsX[0], y: positionsY[0], z: positionsZ[0] };
       const ballVel = { x: velocitiesX[0], y: velocitiesY[0], z: velocitiesZ[0] };
-      if (ballVel.x === 0 && ballVel.y === 0 && ballVel.z === 0) {
-        console.log(`BALL STATIONARY at (${ballPos.x.toFixed(1)}, ${ballPos.y.toFixed(1)}, ${ballPos.z.toFixed(1)})`);
-      }
       
       if (ballPos.z < -COURT_LENGTH / 2 - 0.5 || ballPos.z > COURT_LENGTH / 2 + 0.5 ||
           ballPos.x < -COURT_WIDTH / 2 - 0.5 || ballPos.x > COURT_WIDTH / 2 + 0.5) {
-        console.log("Ball out of bounds");
         if (ballPos.z < 0) {
           setScoreP1(scoreP1() + 1);
           setCurrentServer(1 - serverPlayer);

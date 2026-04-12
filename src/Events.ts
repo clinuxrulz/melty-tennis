@@ -29,4 +29,3 @@ class GameEvents {
 }
 
 export const gameEvents = new GameEvents();
-gameEvents.on("ballBounce", (data) => console.log("Ball bounce:", data));
