@@ -1,8 +1,10 @@
 import { render } from "@solidjs/web";
-import { onSettled } from "solid-js";
+import { createEffect, createMemo, createOwner, createRoot, createSignal, onCleanup, onSettled } from "solid-js";
 import * as THREE from "three";
 import { generateTrack, getTrackCurve, getGroundHeight, TRACK_WIDTH, createStartFinishLine } from "./models/Track";
-import { placeKartAtStart } from "./models/Kart";
+import { World, RegisteredPosition, RegisteredVelocity } from "./World";
+import { createKart } from "./Kart";
+import { createRenderSystem } from "./systems/RenderSystem";
 
 function createTree(height: number): THREE.Group {
   const group = new THREE.Group();
@@ -175,12 +177,7 @@ function createTerrain(curve: THREE.CatmullRomCurve3): { mesh: THREE.Mesh; bound
   return { mesh: new THREE.Mesh(geometry, material), bounds };
 }
 
-function initScene(canvas: HTMLCanvasElement) {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  
-  const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-  
+function initScene(canvasDiv: HTMLDivElement, canvas: HTMLCanvasElement) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x5ba8c9);
   
@@ -214,14 +211,41 @@ function initScene(canvas: HTMLCanvasElement) {
   
   placeProps(curve, scene);
   
-  placeKartAtStart(curve, scene);
+  const { ecs } = World();
   
-  const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
-  renderer.setSize(width, height);
+  const t = 0.01;
+  const startPos = curve.getPointAt(t);
+  const startVel = new THREE.Vector3(0, 0, 0);
+  const kartEntityId = createKart({
+    position: startPos,
+    velocity: startVel,
+    playerType: "Melty",
+    facingForward: true,
+    reactiveEcs: ecs,
+  });
+  
+  const { dispose: disposeRender } = createRenderSystem(ecs, scene);
+  
+  const renderer = new THREE.WebGLRenderer({ antialias: true, canvas, });
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const camera = new THREE.PerspectiveCamera(75, 1.0, 0.1, 1000);
+
+  let resizeObserver = new ResizeObserver(() => {
+    let rect = canvasDiv.getBoundingClientRect();
+    renderer.setSize(rect.width, rect.height);
+    camera.aspect = rect.width / rect.height;
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+  });
+  resizeObserver.observe(canvasDiv);
+  onCleanup(() => {
+    resizeObserver.unobserve(canvasDiv);
+    resizeObserver.disconnect();
+  });
   
-  let t = 0;
+  let progress = 0;
   const speed = 0.0008;
   const lookAheadDistance = 0.025;
   const cameraHeight = 1.2;
@@ -231,13 +255,17 @@ function initScene(canvas: HTMLCanvasElement) {
   const animate = () => {
     if (!running) return;
     
-    t += speed;
-    if (t > 1) t -= 1;
+    progress += speed;
+    if (progress > 1) progress -= 1;
     
-    const currentPos = curve.getPointAt(t);
+    const currentPos = curve.getPointAt(progress);
     const terrainHeight = currentPos.y;
     
-    let lookAheadT = t + lookAheadDistance;
+    ecs.set_field(kartEntityId, RegisteredPosition, "x", currentPos.x);
+    ecs.set_field(kartEntityId, RegisteredPosition, "y", terrainHeight);
+    ecs.set_field(kartEntityId, RegisteredPosition, "z", currentPos.z);
+    
+    let lookAheadT = progress + lookAheadDistance;
     if (lookAheadT > 1) lookAheadT -= 1;
     const lookAheadPos = curve.getPointAt(lookAheadT);
     
@@ -259,22 +287,50 @@ function initScene(canvas: HTMLCanvasElement) {
   
   return () => {
     running = false;
+    disposeRender();
     renderer.dispose();
   };
 }
 
 function App() {
-  let canvasRef: HTMLCanvasElement | undefined;
-  
-  onSettled(() => {
-    if (canvasRef) initScene(canvasRef);
-  });
+  let [ canvasDiv, setCanvasDiv, ] = createSignal<HTMLDivElement>();
+  let [ canvas, setCanvas, ] = createSignal<HTMLCanvasElement>();
+
+  createEffect(
+    () => [
+      canvasDiv(),
+      canvas(),
+    ] as const,
+    ([
+      canvasDiv,
+      canvas,
+    ]) => {
+      if (canvasDiv == undefined) {
+        return;
+      }
+      if (canvas === undefined) {
+        return;
+      }
+      createRoot((dispose) => {
+        initScene(canvasDiv, canvas);
+        return dispose;
+      });
+    },
+  );
   
   return (
-    <canvas
-      ref={(el) => { canvasRef = el; }}
-      style={{ width: "100%", height: "100%", display: "block" }}
-    />
+    <div
+      ref={setCanvasDiv}
+      style={{
+        "width": "100%",
+        "height": "100%",
+      }}
+    >
+      <canvas
+        ref={setCanvas}
+        style={{ width: "100%", height: "100%", display: "block" }}
+      />
+    </div>
   );
 }
 
